@@ -1,6 +1,6 @@
-def check_emergency(intent):
+def check_emergency(intent: str):
 
-    if intent == "EMERGENCY":
-        return True
-    else:
+    if not intent:
         return False
+
+    return intent.upper() == "EMERGENCY"

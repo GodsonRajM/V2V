@@ -4,17 +4,17 @@ import requests
 import pyttsx3
 import threading
 import joblib
+import os
 
-# -------------------------
-# Load ML Model
-# -------------------------
-model = joblib.load("../gesture_model.pkl")
+# Load model
+current_dir = os.path.dirname(__file__)
+model_path = os.path.join(current_dir, "..", "gesture_model.pkl")
 
-# -------------------------
-# Text-to-Speech Setup
-# -------------------------
+model = joblib.load(model_path)
+
+# Text to speech
 engine = pyttsx3.init()
-engine.setProperty('rate',150)
+engine.setProperty('rate', 150)
 
 def speak(text):
     def run():
@@ -22,24 +22,20 @@ def speak(text):
         engine.runAndWait()
     threading.Thread(target=run).start()
 
-# -------------------------
-# Gesture Sentences
-# -------------------------
+# Gesture sentences
 gesture_sentences = {
-    "Help":"I need help",
-    "Yes":"Yes that is correct",
-    "No":"No that is not correct",
-    "Stop":"Please stop",
-    "Hello":"Hello nice to meet you"
+    "Help": "I need help",
+    "Yes": "Yes that is correct",
+    "No": "No that is not correct",
+    "Stop": "Please stop",
+    "Hello": "Hello nice to meet you"
 }
 
-sentence=""
-intent=""
-last_spoken_gesture=""
+sentence = ""
+intent = ""
+last_spoken_gesture = ""
 
-# -------------------------
-# MediaPipe Setup
-# -------------------------
+# MediaPipe setup
 mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
 
@@ -50,30 +46,26 @@ hands = mp_hands.Hands(
     min_tracking_confidence=0.7
 )
 
-# -------------------------
-# Camera
-# -------------------------
 cap = cv2.VideoCapture(0)
 
-API_URL="http://127.0.0.1:8000/gesture"
+API_URL = "http://127.0.0.1:8000/gesture"
 
-# Gesture stability buffer
-gesture_buffer=[]
-buffer_size=5
+gesture_buffer = []
+buffer_size = 8
 
-# -------------------------
-# Main Loop
-# -------------------------
 while True:
 
-    success,img = cap.read()
+    success, img = cap.read()
+
     if not success:
         break
+
+    img = cv2.flip(img, 1)
 
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     results = hands.process(img_rgb)
 
-    gesture=""
+    gesture = ""
 
     if results.multi_hand_landmarks:
 
@@ -85,7 +77,6 @@ while True:
                 mp_hands.HAND_CONNECTIONS
             )
 
-            # Finger landmarks
             thumb_tip = hand_landmarks.landmark[4]
             index_tip = hand_landmarks.landmark[8]
             middle_tip = hand_landmarks.landmark[12]
@@ -98,15 +89,13 @@ while True:
             ring_pip = hand_landmarks.landmark[14]
             pinky_pip = hand_landmarks.landmark[18]
 
-            # Finger states
-            thumb_up = thumb_tip.y < thumb_ip.y
+            thumb_up = thumb_tip.x < thumb_ip.x
             index_up = index_tip.y < index_pip.y
             middle_up = middle_tip.y < middle_pip.y
             ring_up = ring_tip.y < ring_pip.y
             pinky_up = pinky_tip.y < pinky_pip.y
 
-            # Feature vector
-            features=[[ 
+            features = [[
                 int(thumb_up),
                 int(index_up),
                 int(middle_up),
@@ -114,94 +103,53 @@ while True:
                 int(pinky_up)
             ]]
 
-            # Predict gesture
             gesture = model.predict(features)[0]
 
-    # -------------------------
-    # Stability Filter
-    # -------------------------
-    if gesture!="":
+    if gesture != "":
         gesture_buffer.append(gesture)
 
-        if len(gesture_buffer)>buffer_size:
+        if len(gesture_buffer) > buffer_size:
             gesture_buffer.pop(0)
 
-    stable_gesture=""
+    stable_gesture = ""
 
-    if len(gesture_buffer)==buffer_size and gesture_buffer.count(gesture_buffer[-1])==buffer_size:
-        stable_gesture=gesture_buffer[-1]
+    if len(gesture_buffer) == buffer_size and gesture_buffer.count(gesture_buffer[-1]) == buffer_size:
+        stable_gesture = gesture_buffer[-1]
 
-    # -------------------------
-    # Send to Backend
-    # -------------------------
-    if stable_gesture!="" and stable_gesture!=last_spoken_gesture:
+    if stable_gesture != "" and stable_gesture != last_spoken_gesture:
 
         try:
 
             response = requests.post(
                 API_URL,
-                params={"gesture":stable_gesture}
+                params={"gesture": stable_gesture}
             )
 
             data = response.json()
-            intent=data.get("intent","")
 
-            sentence = gesture_sentences.get(stable_gesture,"")
+            intent = data.get("intent", "")
+            sentence = gesture_sentences.get(stable_gesture, "")
 
             speak(sentence)
 
-            if intent=="EMERGENCY":
+            if intent == "EMERGENCY":
                 speak("Emergency detected. This person needs help.")
 
-            last_spoken_gesture=stable_gesture
+            last_spoken_gesture = stable_gesture
 
         except:
-            intent="Backend Offline"
+            intent = "Backend Offline"
 
-    # -------------------------
-    # Display
-    # -------------------------
-    cv2.putText(
-        img,
-        f"Gesture: {gesture}",
-        (20,50),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1,
-        (0,255,0),
-        2
-    )
+    display_gesture = stable_gesture if stable_gesture else "Detecting..."
 
-    cv2.putText(
-        img,
-        f"Intent: {intent}",
-        (20,90),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1,
-        (255,0,0),
-        2
-    )
+    cv2.putText(img, f"Gesture: {display_gesture}", (20, 50),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-    cv2.putText(
-        img,
-        f"Sentence: {sentence}",
-        (20,130),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1,
-        (255,255,0),
-        2
-    )
+    cv2.putText(img, f"Intent: {intent}", (20, 90),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-    if intent=="EMERGENCY":
-
-        cv2.putText(
-            img,
-            "ALERT: EMERGENCY DETECTED!",
-            (20,170),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0,0,255),
-            3
-        )
+    cv2.putText(img, f"Sentence: {sentence}", (20, 130),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
 
     cv2.imshow("V2V Gesture Detection", img)
 

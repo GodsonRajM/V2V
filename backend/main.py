@@ -5,51 +5,51 @@ from speech_module import speech_to_text
 
 app = FastAPI()
 
+latest_data = {
+    "gesture": "",
+    "intent": "",
+    "sentence": ""
+}
+
+sentence_map = {
+    "Help": "I need help",
+    "Hello": "Hello nice to meet you",
+    "Stop": "Please stop",
+    "Yes": "Yes that is correct",
+    "No": "No that is not correct"
+}
+
 
 @app.get("/")
 def home():
     return {"message": "V2V Backend Running"}
 
 
-# Intent detection API
-@app.post("/intent")
-def get_intent(text: str):
-
-    intent = detect_intent(text)
-    alert = check_emergency(intent)
-
-    return {
-        "text": text,
-        "intent": intent,
-        "alert": alert
-    }
-
-
-# Gesture processing API
 @app.post("/gesture")
-def process_gesture(gesture: str):
+def receive_gesture(gesture: str):
 
     intent = detect_intent(gesture)
-    alert = check_emergency(intent)
 
-    return {
-        "gesture": gesture,
-        "intent": intent,
-        "alert": alert
-    }
+    latest_data["gesture"] = gesture
+    latest_data["intent"] = intent
+    latest_data["sentence"] = sentence_map.get(gesture, "")
+
+    return latest_data
 
 
-# Speech processing API
+@app.get("/latest")
+def get_latest():
+    return latest_data
+
+
 @app.post("/speech")
 def process_speech(audio_path: str):
 
     text = speech_to_text(audio_path)
 
     intent = detect_intent(text)
-    alert = check_emergency(intent)
 
     return {
         "speech_text": text,
-        "intent": intent,
-        "alert": alert
+        "intent": intent
     }
