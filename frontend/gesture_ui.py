@@ -18,7 +18,23 @@ API_URL = "http://127.0.0.1:8000/gesture"
 engine = pyttsx3.init()
 engine.setProperty("rate",150)
 
+import os
+
+VOICE_ENABLED = True
+
+# Disable voice on cloud servers like Render
+if "RENDER" in os.environ:
+    VOICE_ENABLED = False
+
+if VOICE_ENABLED:
+    import pyttsx3
+    engine = pyttsx3.init()
+    engine.setProperty("rate",150)
+
 def speak(text):
+    if not VOICE_ENABLED:
+        return
+
     try:
         engine.stop()
         engine.say(text)
