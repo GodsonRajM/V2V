@@ -1,6 +1,4 @@
 from fastapi import FastAPI
-from speech_module import speech_to_text
-from record_audio import record_audio
 
 app = FastAPI()
 
@@ -13,11 +11,6 @@ latest_data = {
 @app.get("/")
 def home():
     return {"message": "V2V Backend Running"}
-
-
-# -------------------
-# Gesture API
-# -------------------
 
 @app.post("/gesture")
 def receive_gesture(gesture: str):
@@ -58,25 +51,3 @@ def receive_gesture(gesture: str):
 @app.get("/latest")
 def get_latest():
     return latest_data
-
-
-# -------------------
-# Speech API
-# -------------------
-
-@app.post("/speech")
-def process_speech():
-
-    audio_file = record_audio()
-
-    text = speech_to_text(audio_file)
-
-    intent = "GENERAL"
-
-    if "help" in text.lower():
-        intent = "EMERGENCY"
-
-    return {
-        "speech_text": text,
-        "intent": intent
-    }
